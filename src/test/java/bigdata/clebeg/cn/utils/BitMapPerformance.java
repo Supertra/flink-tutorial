@@ -1,11 +1,8 @@
 package bigdata.clebeg.cn.utils;
 
-import com.sun.tools.corba.se.idl.InterfaceGen;
 import org.roaringbitmap.RoaringBitmap;
-import scala.Int;
 
 import java.util.BitSet;
-import java.util.Random;
 import java.util.Stack;
 
 public class BitMapPerformance {
