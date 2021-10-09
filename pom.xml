@@ -62,6 +62,11 @@ under the License.
 		<!-- These dependencies are provided, because they should not be packaged into the JAR file. -->
 		<dependency>
 			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-clients_${scala.binary.version}</artifactId>
+			<version>${flink.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-java</artifactId>
 			<version>${flink.version}</version>
 			<scope>${scope}</scope>
