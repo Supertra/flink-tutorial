@@ -30,17 +30,21 @@ under the License.
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<flink.version>1.13.0</flink.version>
+		<flink.version>1.13.2</flink.version>
 		<java.version>1.8</java.version>
 		<scala.binary.version>2.12</scala.binary.version>
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
-		<mysql.jdbc>8.0.19</mysql.jdbc>
+		<mysql.jdbc.version>5.1.35</mysql.jdbc.version>
+		<redis.connector.version>1.0</redis.connector.version>
 		<httpasyncclient.version>4.1.4</httpasyncclient.version>
 		<fastjson.version>1.2.62</fastjson.version>
 		<guava.version>29.0-jre</guava.version>
-<!--		<scope>compile</scope>-->
-		<scope>provided</scope>
+		<roaringbitmap.version>0.8.12</roaringbitmap.version>
+		<junit.verion>4.13.1</junit.verion>
+		<lombok.version>1.18.20</lombok.version>
+		<scope>compile</scope>
+<!--		<scope>provided</scope>-->
 	</properties>
 
 	<repositories>
@@ -80,7 +84,23 @@ under the License.
 		</dependency>
 
 		<!-- Add connector dependencies here. They must be in the default scope (compile). -->
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-connector-jdbc_${scala.binary.version}</artifactId>
+			<version>${flink.version}</version>
+		</dependency>
 
+		<dependency>
+			<groupId>org.apache.bahir</groupId>
+			<artifactId>flink-connector-redis_2.11</artifactId>
+			<version>${redis.connector.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.apache.flink</groupId>
+					<artifactId>flink-streaming-java_2.11</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<!-- Example:
 
 		<dependency>
@@ -93,7 +113,7 @@ under the License.
 		<dependency>
 			<groupId>mysql</groupId>
 			<artifactId>mysql-connector-java</artifactId>
-			<version>${mysql.jdbc}</version>
+			<version>${mysql.jdbc.version}</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpasyncclient -->
 		<dependency>
@@ -114,20 +134,12 @@ under the License.
 			<version>${guava.version}</version>
 		</dependency>
 
-		<!-- Add logging framework, to produce console output when running in the IDE. -->
-		<!-- These dependencies are excluded from the application JAR by default. -->
 		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-log4j12</artifactId>
-			<version>1.7.30</version>
-			<scope>runtime</scope>
+			<groupId>org.roaringbitmap</groupId>
+			<artifactId>RoaringBitmap</artifactId>
+			<version>${roaringbitmap.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>log4j</groupId>
-			<artifactId>log4j</artifactId>
-			<version>1.2.17</version>
-			<scope>runtime</scope>
-		</dependency>
+
 		<!-- https://mvnrepository.com/artifact/junit/junit -->
 		<dependency>
 			<groupId>junit</groupId>
@@ -135,10 +147,12 @@ under the License.
 			<version>4.13.1</version>
 			<scope>test</scope>
 		</dependency>
+
 		<dependency>
-			<groupId>org.roaringbitmap</groupId>
-			<artifactId>RoaringBitmap</artifactId>
-			<version>0.8.12</version>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<scope>provided</scope>
 		</dependency>
 	</dependencies>
 
