@@ -15,7 +15,7 @@ import org.apache.flink.util.Collector;
 
 /**
  * 统计单词数量并且输出到redis
- *
+ * flink run -t yarn-per-job -c bigdata.clebeg.cn.quickstart.connectors.WordCntSinkRedisDemo -yjm 512 -ytm 512 --detached flink-tutorial-1.0-SNAPSHOT.jar
  * @author clebeg
  * @create 2021-10-10 20:49
  **/
@@ -37,9 +37,9 @@ public class WordCntSinkRedisDemo {
 
 
         FlinkJedisPoolConfig flinkJedisPoolConfig = new FlinkJedisPoolConfig.Builder()
-                .setHost("9.134.120.209")
+                .setHost("bigdata1")
                 .setPort(6379)
-                .setPassword("123456")
+                .setTimeout(5000)
                 .build();
         RedisSink<Tuple2<String, Long>> redisSink = new RedisSink<>(flinkJedisPoolConfig, new RedisMapper<Tuple2<String, Long>>() {
             @Override
