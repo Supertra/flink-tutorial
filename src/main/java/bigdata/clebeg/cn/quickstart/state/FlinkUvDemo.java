@@ -55,7 +55,7 @@ public class FlinkUvDemo {
         env.setStateBackend(new HashMapStateBackend());
         env.setParallelism(1);
 
-        env.setRestartStrategy(RestartStrategies.fixedDelayRestart( 1, 1000));
+        env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 1000));
         // step2. init source
         DataStream<String> visitDS = getDataStream(env);
 
