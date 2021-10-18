@@ -41,6 +41,7 @@ under the License.
 		<fastjson.version>1.2.62</fastjson.version>
 		<guava.version>29.0-jre</guava.version>
 		<roaringbitmap.version>0.8.12</roaringbitmap.version>
+		<hutool.version>5.7.14</hutool.version>
 		<junit.verion>4.13.1</junit.verion>
 		<lombok.version>1.18.20</lombok.version>
 		<scope>compile</scope>
@@ -138,6 +139,12 @@ under the License.
 			<groupId>org.roaringbitmap</groupId>
 			<artifactId>RoaringBitmap</artifactId>
 			<version>${roaringbitmap.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>cn.hutool</groupId>
+			<artifactId>hutool-all</artifactId>
+			<version>${hutool.version}</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/junit/junit -->
