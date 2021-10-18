@@ -18,6 +18,7 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
@@ -39,6 +40,12 @@ import org.apache.flink.util.Collector;
  * 2. 可能状态会特别大
  * input:
  * appid,uid,visit_time
+ *
+ * output:
+ * uvRes> (app1,1634400000000,1)
+ * uvRes> (app1,1634400000000,2)
+ * uvRes> (app1,1634400000000,3)
+ * uvRes> (app1,1634486400000,1)
  * @author clebegxie
  */
 public class FlinkUvDemo {
@@ -97,13 +104,13 @@ public class FlinkUvDemo {
         keyStep1Res.print("keyStep1Res");
 
         // 3.4 然后再进行第二步窗口聚合
-        SingleOutputStreamOperator<Tuple2<String, Long>> uvRes = keyStep1Res.map(
-                new MapFunction<AppMidKeyInfo, Tuple2<String, Long>>() {
+        SingleOutputStreamOperator<Tuple3<String, Long, Long>> uvRes = keyStep1Res.map(
+                new MapFunction<AppMidKeyInfo, Tuple3<String, Long, Long>>() {
                     @Override
-                    public Tuple2<String, Long> map(AppMidKeyInfo item) throws Exception {
-                        return Tuple2.of(item.getAppid(), item.getPartUV());
+                    public Tuple3<String, Long, Long> map(AppMidKeyInfo item) throws Exception {
+                        return Tuple3.of(item.getAppid(), item.getWindowBegin(), item.getPartUV());
                     }
-                }).keyBy(item -> item.f0).sum(1);
+                }).keyBy(item -> item.f0 + "_" + item.f1).sum(2);
 
         // step4. 输出结果
         uvRes.print("uvRes");
@@ -113,14 +120,17 @@ public class FlinkUvDemo {
     }
 
     private static class MyKeyedProcessFunction extends KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo> {
+        // map state 保持出现过的 uid
         MapState<Long, Integer> uidState;
         MapStateDescriptor<Long, Integer> uidStateDesc;
 
+        // value state 保留出现过的用户数
         ValueState<Long> uvState;
         ValueStateDescriptor<Long> uvStateDesc;
 
         @Override
         public void open(Configuration parameters) throws Exception {
+            // init state
             uidStateDesc = new MapStateDescriptor<Long, Integer>("uidState", TypeInformation.of(Long.class),
                     TypeInformation.of(Integer.class));
             uidState = getRuntimeContext().getMapState(uidStateDesc);
@@ -141,10 +151,9 @@ public class FlinkUvDemo {
                 return;
             }
 
-            long uid = appVisitEvent.uid;
-
-            if (!uidState.contains(uid)) {
-                uidState.put(uid, 1);
+            if (!uidState.contains(appVisitEvent.uid)) {
+                // 如果用户没有出行过，则更新数据: uv+1
+                uidState.put(appVisitEvent.uid, 1);
                 Long cnt = uvState.value();
                 if (cnt == null) {
                     uvState.update(1L);
@@ -177,6 +186,8 @@ public class FlinkUvDemo {
                 "app1,1001,1634447599000",
                 "app1,1001,1634451199000",
                 "app1,1001,1634483599000",
+                "app1,1002,1634483599000",
+                "app1,1003,1634483599000",
                 "app1,1001,1634486359000",
                 "app1,1001,1634486400000",
                 "app1,1001,1634486459000"
