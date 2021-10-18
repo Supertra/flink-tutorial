@@ -53,7 +53,6 @@ public class FlinkUvDemo {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
         env.setStateBackend(new HashMapStateBackend());
-        env.setParallelism(1);
 
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 1000));
         // step2. init source
@@ -118,8 +117,8 @@ public class FlinkUvDemo {
 
     private static class MyKeyedProcessFunction extends KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo> {
         // map state 保持出现过的 uid
-        MapState<Long, Integer> uidState;
-        MapStateDescriptor<Long, Integer> uidStateDesc;
+        MapState<Long, Boolean> uidState;
+        MapStateDescriptor<Long, Boolean> uidStateDesc;
 
         // value state 保留出现过的用户数
         ValueState<Long> uvState;
@@ -128,8 +127,8 @@ public class FlinkUvDemo {
         @Override
         public void open(Configuration parameters) throws Exception {
             // init state
-            uidStateDesc = new MapStateDescriptor<Long, Integer>("uidState", TypeInformation.of(Long.class),
-                    TypeInformation.of(Integer.class));
+            uidStateDesc = new MapStateDescriptor<Long, Boolean>("uidState", TypeInformation.of(Long.class),
+                    TypeInformation.of(Boolean.class));
             uidState = getRuntimeContext().getMapState(uidStateDesc);
 
             uvStateDesc = new ValueStateDescriptor<Long>("uvState", TypeInformation.of(Long.class));
@@ -150,7 +149,7 @@ public class FlinkUvDemo {
 
             if (!uidState.contains(appVisitEvent.uid)) {
                 // 如果用户没有出行过，则更新数据: uv+1
-                uidState.put(appVisitEvent.uid, 1);
+                uidState.put(appVisitEvent.uid, null);
                 Long cnt = uvState.value();
                 if (cnt == null) {
                     uvState.update(1L);
