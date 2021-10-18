@@ -51,10 +51,11 @@ public class FlinkUvDemo {
         env.setStateBackend(new HashMapStateBackend());
         env.setParallelism(1);
 
-        env.setRestartStrategy(RestartStrategies.fixedDelayRestart( 3, 60000));
+        env.setRestartStrategy(RestartStrategies.fixedDelayRestart( 1, 1000));
         // step2. init source
         DataStream<String> visitDS = getDataStream(env);
 
+        // step3. transformation
         SingleOutputStreamOperator<AppVisitEvent> events = visitDS.map(new MapFunction<String, AppVisitEvent>() {
             @Override
             public AppVisitEvent map(String input) throws Exception {
@@ -64,7 +65,7 @@ public class FlinkUvDemo {
                         String appid = split[0];
                         long uid = Long.parseLong(split[1]);
                         long visitTime = Long.parseLong(split[2]);
-                        return new AppVisitEvent(appid, uid, visitTime, uid % 100);
+                        return new AppVisitEvent(appid, uid, visitTime, uid % 1000);
                     } catch (Exception e) {
                         System.out.println(String.format("Bad row:%s, err msg=%s", input, e.getMessage()));
                     }
@@ -73,13 +74,13 @@ public class FlinkUvDemo {
             }
         }).filter(event -> event != null);
 
-        // 告诉 flink 后面的时间使用哪一个
+        // 3.1 告诉 flink 后面的时间使用哪个
         events.assignTimestampsAndWatermarks(
                 WatermarkStrategy.<AppVisitEvent>forBoundedOutOfOrderness(Duration.ofSeconds(0))
                         .withTimestampAssigner((event, timestamp) -> event.getVisitTime())
         );
 
-        // 按照 partId 分组，parId 是通过 uid 分组得到
+        // 3.2 按照 partId 分组，parId 是通过 uid 分组得到
         KeyedStream<AppVisitEvent, AppMidKeyInfo> keyStep1 = events.keyBy(new KeySelector<AppVisitEvent, AppMidKeyInfo>() {
             @Override
             public AppMidKeyInfo getKey(AppVisitEvent visitEvent) throws Exception {
@@ -91,10 +92,11 @@ public class FlinkUvDemo {
                 return appMidKey;
             }
         });
-        // 经过第一步窗口处理
+        // 3.3 经过第一步窗口处理
         SingleOutputStreamOperator<AppMidKeyInfo> keyStep1Res = keyStep1.process(new MyKeyedProcessFunction());
         keyStep1Res.print("keyStep1Res");
 
+        // 3.4 然后再进行第二步窗口聚合
         SingleOutputStreamOperator<Tuple2<String, Long>> uvRes = keyStep1Res.map(
                 new MapFunction<AppMidKeyInfo, Tuple2<String, Long>>() {
                     @Override
@@ -103,21 +105,11 @@ public class FlinkUvDemo {
                     }
                 }).keyBy(item -> item.f0).sum(1);
 
+        // step4. 输出结果
         uvRes.print("uvRes");
 
-        env.execute();
-    }
-
-    private static DataStream<String> getDataStream(StreamExecutionEnvironment env) {
-        // input format: string,uin32,13longtime
-        return env.fromElements(
-                "app1,1001,1634447599000",
-                "app1,1001,1634451199000",
-                "app1,1001,1634483599000",
-                "app1,1001,1634486359000",
-                "app1,1001,1634486400000",
-                "app1,1001,1634486459000"
-        );
+        // step5. execute
+        env.execute("FlinkUvDemo");
     }
 
     private static class MyKeyedProcessFunction extends KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo> {
@@ -150,11 +142,15 @@ public class FlinkUvDemo {
             }
 
             long uid = appVisitEvent.uid;
-            int uidStateValue = uidState.get(uid);
-            if (uidStateValue != 1) {
+
+            if (!uidState.contains(uid)) {
                 uidState.put(uid, 1);
-                long cnt = uvState.value();
-                uvState.update(cnt + 1);
+                Long cnt = uvState.value();
+                if (cnt == null) {
+                    uvState.update(1L);
+                } else {
+                    uvState.update(cnt + 1);
+                }
                 ctx.timerService().registerEventTimeTimer(ctx.getCurrentKey().windowEnd + 1);
             }
         }
@@ -168,11 +164,23 @@ public class FlinkUvDemo {
             long beginT = ctx.getCurrentKey().getWindowBegin();
             long endT = ctx.getCurrentKey().getWindowEnd();
             AppMidKeyInfo midInfo = new AppMidKeyInfo(appid, partId, endT, beginT, uvState.value());
-            System.out.println(String.format("timestamp:%l, output: %s", midInfo));
+            System.out.println(String.format("timestamp:%d, output: %s", timestamp, midInfo));
             out.collect(midInfo);
             uidState.clear();
             uvState.clear();
         }
+    }
+
+    private static DataStream<String> getDataStream(StreamExecutionEnvironment env) {
+        // input format: string,uin32,13longtime
+        return env.fromElements(
+                "app1,1001,1634447599000",
+                "app1,1001,1634451199000",
+                "app1,1001,1634483599000",
+                "app1,1001,1634486359000",
+                "app1,1001,1634486400000",
+                "app1,1001,1634486459000"
+        );
     }
 
     @AllArgsConstructor
