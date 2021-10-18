@@ -25,3 +25,4 @@ uv计算在flink里面是一个难题，一般生产环境会面临两个挑战�
 
 ## 参考资料
 1. flink 如何做压测：https://www.cxyzjd.com/article/weixin_43291055/102692456
+2. 快手实时链路压测解密：https://xie.infoq.cn/article/3622e21cc51a9c6a6c1ce3c69
