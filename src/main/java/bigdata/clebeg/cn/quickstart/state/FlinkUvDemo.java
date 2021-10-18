@@ -78,13 +78,13 @@ public class FlinkUvDemo {
             }
         }).filter(event -> event != null);
 
-        // 3.1 告诉 flink 后面的时间使用哪个
+        // 3.1 告诉 flink 事件时间
         events.assignTimestampsAndWatermarks(
                 WatermarkStrategy.<AppVisitEvent>forBoundedOutOfOrderness(Duration.ofSeconds(0))
                         .withTimestampAssigner((event, timestamp) -> event.getVisitTime())
         );
 
-        // 3.2 按照 partId 分组，parId 是通过 uid 分组得到
+        // 3.2 按照 partId 分组，parId 是通过 uid 取模
         KeyedStream<AppVisitEvent, AppMidKeyInfo> keyStep1 = events.keyBy(new KeySelector<AppVisitEvent, AppMidKeyInfo>() {
             @Override
             public AppMidKeyInfo getKey(AppVisitEvent visitEvent) throws Exception {
