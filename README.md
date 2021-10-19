@@ -29,3 +29,4 @@ uv计算在flink里面是一个难题，一般生产环境会面临两个挑战�
 1. flink 如何做压测：https://www.cxyzjd.com/article/weixin_43291055/102692456
 2. 快手实时链路压测解密：https://xie.infoq.cn/article/3622e21cc51a9c6a6c1ce3c69
 3. Flink 状态管理：https://www.cnblogs.com/felixzh/p/13167665.html
+4. Flink 如何快速写入数据进入 Redis：https://tech.ipalfish.com/blog/2021/06/24/flink-bulk-insert-redis/

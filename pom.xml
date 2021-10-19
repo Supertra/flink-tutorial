@@ -36,6 +36,7 @@ under the License.
 		<maven.compiler.source>${java.version}</maven.compiler.source>
 		<maven.compiler.target>${java.version}</maven.compiler.target>
 		<mysql.jdbc.version>5.1.35</mysql.jdbc.version>
+		<jedis.version>3.7.0</jedis.version>
 		<redis.connector.version>1.0</redis.connector.version>
 		<httpasyncclient.version>4.1.4</httpasyncclient.version>
 		<fastjson.version>1.2.62</fastjson.version>
@@ -116,6 +117,14 @@ under the License.
 			<artifactId>mysql-connector-java</artifactId>
 			<version>${mysql.jdbc.version}</version>
 		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/redis.clients/jedis -->
+		<dependency>
+			<groupId>redis.clients</groupId>
+			<artifactId>jedis</artifactId>
+			<version>${jedis.version}</version>
+		</dependency>
+
 		<!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpasyncclient -->
 		<dependency>
 			<groupId>org.apache.httpcomponents</groupId>
