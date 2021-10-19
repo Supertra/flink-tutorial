@@ -19,10 +19,12 @@ flink run -t yarn-per-job -Dexecution.runtime-mode=BATCH -c bigdata.clebeg.cn.qu
 # yarn kill 某个应用
 yarn application -kill application_1633745373273_0004
 ```
-2. [WatermakerDemo](./src/main/java/bigdata/clebeg/cn/quickstart/abouttime/WatermakerDemo.java): 模拟通过水印等待窗口延迟触发、延迟数据测流输出
+2. [WatermakerDemo[(./src/main/java/bigdata/clebeg/cn/quickstart/abouttime/WatermakerDemo.java): 模拟通过水印等待窗口延迟触发、延迟数据测流输出
 3. [FlinkUvDemo](./src/main/java/bigdata/clebeg/cn/quickstart/state/FlinkUvDemo.java): Flink解决UV计算问题
 uv计算在flink里面是一个难题，一般生产环境会面临两个挑战，挑战1：热点问题，挑战2：大状态问题，此实现在大部分场景上可以解决上述两个问题。
 
+## 详细原理
+1. [Flink状态管理](./docs/Flink状态管理.md)：详细介绍 Flink 状态管理的原理、类型、横向扩展机制、使用方式和实际案例。
 ## 参考资料
 1. flink 如何做压测：https://www.cxyzjd.com/article/weixin_43291055/102692456
 2. 快手实时链路压测解密：https://xie.infoq.cn/article/3622e21cc51a9c6a6c1ce3c69
