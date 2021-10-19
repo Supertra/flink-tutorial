@@ -22,6 +22,8 @@ yarn application -kill application_1633745373273_0004
 2. [WatermakerDemo[(./src/main/java/bigdata/clebeg/cn/quickstart/abouttime/WatermakerDemo.java): 模拟通过水印等待窗口延迟触发、延迟数据测流输出
 3. [FlinkUvDemo](./src/main/java/bigdata/clebeg/cn/quickstart/state/FlinkUvDemo.java): Flink解决UV计算问题
 uv计算在flink里面是一个难题，一般生产环境会面临两个挑战，挑战1：热点问题，挑战2：大状态问题，此实现在大部分场景上可以解决上述两个问题。
+4. [BatchRedisSink](./src/main/java/bigdata/clebeg/cn/quickstart/sink/BatchRedisSink.java): Flink 解决快速输入数据到 redis
+输出到 Redis 考虑比较全面的话：1. 需要批量输出 2. 需要定时输出 3. 需要使用连接池，如果性能继续优化，还可以异步，后面可以给出优化的功能。
 
 ## 详细原理
 1. [Flink状态管理](./docs/Flink状态管理.md)：详细介绍 Flink 状态管理的原理、类型、横向扩展机制、使用方式和实际案例。
