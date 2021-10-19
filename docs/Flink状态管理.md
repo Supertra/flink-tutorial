@@ -66,3 +66,77 @@ AppendingState 又被实现为 ListState、ReducingState 和 AggregatingState。
 + ListState[T]存储了一个由T类型数据组成的列表。我们可以使用add(value: T)或addAll(values: java.util.List[T])向状态中添加元素，使用get(): java.lang.Iterable[T]获取整个列表，使用update(values: java.util.List[T])来更新列表，新的列表将替换旧的列表。
 + ReducingState[T]和AggregatingState[IN, OUT]与ListState[T]同属于MergingState[T]。与ListState[T]不同的是，ReducingState[T]只有一个元素，而不是一个列表。它的原理是新元素通过add(value: T)加入后，与已有的状态元素使用ReduceFunction合并为一个元素，并更新到状态里。AggregatingState[IN, OUT]与ReducingState[T]类似，也只有一个元素，只不过AggregatingState[IN, OUT]的输入和输出类型可以不一样。ReducingState[T]和AggregatingState[IN, OUT]与窗口上进行ReduceFunction和AggregateFunction很像，都是将新元素与已有元素做聚合。
 
+
+## 五、Operator State的使用方法
+目前 Operator State 主要有三种，其中 ListState 和 UnionListState 在数据结构上都是一种 ListState，还有一种 BroadcastState。
+这里主要介绍 ListState 这种列表形式的状态。这种状态以一个列表的形式序列化并存储，以适应横向扩展时状态重分布的问题。
+每个 subtask 有零到多个状态S，组成一个列表 ListState[S]。各个算子子任务将自己状态列表的 snapshot 到存储，
+整个状态逻辑上可以理解成是将这些列表连接到一起，组成了一个包含所有状态的大列表。
+当作业重启或横向扩展时，需要将这个包含所有状态的列表重新分布到各个算子子任务上。    
+ListState 和 UnionListState 的区别在于：ListState 是将整个状态列表按照 round-robin 的模式均匀分布到各个算子子任务上，
+每个算子子任务得到的是整个列表的子集；UnionListState 按照广播的模式，将整个列表发送给每个算子子任务。
+Operator State 的实际应用场景不如 Keyed State 多，它经常被用在 Source 或 Sink 等算子上，
+用来保存流入数据的偏移量或对输出数据做缓存，以保证 Flink 应用的Exactly-Once语义。
+这里来看一个 Flink 官方提供的 Sink 案例来了解 CheckpointedFunction 的工作原理。
+
+```java
+public class BufferingSink
+        implements SinkFunction<Tuple2<String, Integer>>,
+                   CheckpointedFunction {
+
+    // 达到一定的阈值开始输出
+    private final int threshold;
+
+    // 当前状态保持最后一批还没有输出的数据
+    private transient ListState<Tuple2<String, Integer>> checkpointedState;
+
+    // 本地缓存的数据
+    private List<Tuple2<String, Integer>> bufferedElements;
+
+    public BufferingSink(int threshold) {
+        this.threshold = threshold;
+        this.bufferedElements = new ArrayList<>();
+    }
+
+    @Override
+    public void invoke(Tuple2<String, Integer> value, Context ctx) throws Exception {
+        // 一个 subtask 不断收集数据
+        bufferedElements.add(value);
+        if (bufferedElements.size() == threshold) {
+            // 假如达到阈值就输出
+            for (Tuple2<String, Integer> element: bufferedElements) {
+                // send it to the sink
+            }
+            bufferedElements.clear();
+        }
+    }
+
+    @Override
+    public void snapshotState(FunctionSnapshotContext context) throws Exception {
+        // 定期保持还没有输出的数据
+        checkpointedState.clear();
+        for (Tuple2<String, Integer> element : bufferedElements) {
+            checkpointedState.add(element);
+        }
+    }
+
+    @Override
+    public void initializeState(FunctionInitializationContext context) throws Exception {
+        // 如果发生故障重启，就将之前还没有输出的数据重新读出来接着添加数据
+        // 数据恢复时候有可能获取到的数据是随机的，故障发生时候每个 subtask 都有部分没有输出的数据
+        // 故障恢复时候就按 rb 方式发送到每个 subtask。
+        ListStateDescriptor<Tuple2<String, Integer>> descriptor =
+            new ListStateDescriptor<>(
+                "buffered-elements",
+                TypeInformation.of(new TypeHint<Tuple2<String, Integer>>() {}));
+
+        checkpointedState = context.getOperatorStateStore().getListState(descriptor);
+
+        if (context.isRestored()) {
+            for (Tuple2<String, Integer> element : checkpointedState.get()) {
+                bufferedElements.add(element);
+            }
+        }
+    }
+}
+```
