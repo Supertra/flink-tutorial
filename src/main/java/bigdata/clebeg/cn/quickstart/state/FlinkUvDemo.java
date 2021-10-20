@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
@@ -19,7 +18,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -51,9 +49,6 @@ public class FlinkUvDemo {
     public static void main(String[] args) throws Exception {
         // step1. init env
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setRuntimeMode(RuntimeExecutionMode.STREAMING);
-        env.setStateBackend(new HashMapStateBackend());
-
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 1000));
         // step2. init source
         DataStream<String> visitDS = getDataStream(env);
@@ -149,7 +144,7 @@ public class FlinkUvDemo {
 
             if (!uidState.contains(appVisitEvent.uid)) {
                 // 如果用户没有出行过，则更新数据: uv+1
-                uidState.put(appVisitEvent.uid, null);
+                uidState.put(appVisitEvent.uid, true);
                 Long cnt = uvState.value();
                 if (cnt == null) {
                     uvState.update(1L);
@@ -194,7 +189,7 @@ public class FlinkUvDemo {
     @NoArgsConstructor
     @ToString
     @Data
-    private static class AppVisitEvent {
+    public static class AppVisitEvent {
         private String appid;
         private long uid;
         private long visitTime;
@@ -205,7 +200,7 @@ public class FlinkUvDemo {
     @NoArgsConstructor
     @ToString
     @Data
-    private static class AppMidKeyInfo {
+    public static class AppMidKeyInfo {
         private String appid;
         private long partId;
         private long windowEnd;

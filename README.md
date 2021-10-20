@@ -32,3 +32,5 @@ UV 计算在 Flink 里面是一个难题，一般生产环境会面临两个挑�
 2. 快手实时链路压测解密：https://xie.infoq.cn/article/3622e21cc51a9c6a6c1ce3c69
 3. Flink 状态管理：https://www.cnblogs.com/felixzh/p/13167665.html
 4. Flink 如何快速写入数据进入 Redis：https://tech.ipalfish.com/blog/2021/06/24/flink-bulk-insert-redis/
+5. Flink join 时态表：https://blog.csdn.net/wangpei1949/article/details/103541939
+6. 深入理解 Flink 容错机制：http://www.whitewood.me/2019/07/28/%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3-Flink-%E5%AE%B9%E9%94%99%E6%9C%BA%E5%88%B6/
