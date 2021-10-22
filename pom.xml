@@ -45,8 +45,8 @@ under the License.
 		<hutool.version>5.7.14</hutool.version>
 		<junit.verion>4.13.1</junit.verion>
 		<lombok.version>1.18.20</lombok.version>
-<!--		<scope>compile</scope>-->
-		<scope>provided</scope>
+		<scope>compile</scope>
+<!--		<scope>provided</scope>-->
 	</properties>
 
 	<repositories>

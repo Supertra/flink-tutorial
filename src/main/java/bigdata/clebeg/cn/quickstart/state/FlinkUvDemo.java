@@ -9,20 +9,22 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichAggregateFunction;
+import org.apache.flink.api.common.functions.RichReduceFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.api.common.state.MapState;
-import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction.Context;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
 /**
@@ -49,10 +51,11 @@ public class FlinkUvDemo {
     public static void main(String[] args) throws Exception {
         // step1. init env
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(1);
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(1, 1000));
         // step2. init source
-        DataStream<String> visitDS = getDataStream(env);
-
+//        DataStream<String> visitDS = getDataStream(env);
+        DataStreamSource<String> visitDS = env.socketTextStream("bigdata1", 9999);
         // step3. transformation
         SingleOutputStreamOperator<AppVisitEvent> events = visitDS.map(new MapFunction<String, AppVisitEvent>() {
             @Override
@@ -65,110 +68,42 @@ public class FlinkUvDemo {
                         long visitTime = Long.parseLong(split[2]);
                         return new AppVisitEvent(appid, uid, visitTime, uid % 1000);
                     } catch (Exception e) {
-                        System.out.println(String.format("Bad row:%s, err msg=%s", input, e.getMessage()));
+                        System.out.printf("Bad row:%s, err msg=%s\n", input, e.getMessage());
                     }
                 }
                 return null;
             }
         }).filter(event -> event != null);
-
+        events.print("events");
         // 3.1 告诉 flink 事件时间
-        events.assignTimestampsAndWatermarks(
+        SingleOutputStreamOperator<AppVisitEvent> eventTimeDS = events.assignTimestampsAndWatermarks(
                 WatermarkStrategy.<AppVisitEvent>forBoundedOutOfOrderness(Duration.ofSeconds(0))
                         .withTimestampAssigner((event, timestamp) -> event.getVisitTime())
         );
 
-        // 3.2 按照 partId 分组，parId 是通过 uid 取模
-        KeyedStream<AppVisitEvent, AppMidKeyInfo> keyStep1 = events.keyBy(new KeySelector<AppVisitEvent, AppMidKeyInfo>() {
-            @Override
-            public AppMidKeyInfo getKey(AppVisitEvent visitEvent) throws Exception {
-                DateTime visitDT = DateUtil.date(visitEvent.getVisitTime());
-                long beginT = DateUtil.beginOfDay(visitDT).getTime();
-                long endT = DateUtil.endOfDay(visitDT).getTime();
-                AppMidKeyInfo appMidKey = new AppMidKeyInfo(visitEvent.appid, visitEvent.partId, endT, beginT, 0L);
-                System.out.println(String.format("input=%s, output=%s", visitEvent, appMidKey));
-                return appMidKey;
-            }
-        });
+        // 3.1 按照 partId 分组，parId 是通过 uid 取模
+        KeyedStream<AppVisitEvent, Tuple2<String, Long>> keyStep1 = eventTimeDS
+                .keyBy(new KeySelector<AppVisitEvent, Tuple2<String, Long>>() {
+                    @Override
+                    public Tuple2<String, Long> getKey(AppVisitEvent visitEvent) throws Exception {
+                        return Tuple2.of(visitEvent.appid, visitEvent.partId);
+                    }
+                });
         // 3.3 经过第一步窗口处理
-        SingleOutputStreamOperator<AppMidKeyInfo> keyStep1Res = keyStep1.process(new MyKeyedProcessFunction());
+        SingleOutputStreamOperator<AppMidInfo> keyStep1Res = keyStep1.process(new UVProcessFunction());
         keyStep1Res.print("keyStep1Res");
 
-        // 3.4 然后再进行第二步窗口聚合
-        SingleOutputStreamOperator<Tuple3<String, Long, Long>> uvRes = keyStep1Res.map(
-                new MapFunction<AppMidKeyInfo, Tuple3<String, Long, Long>>() {
-                    @Override
-                    public Tuple3<String, Long, Long> map(AppMidKeyInfo item) throws Exception {
-                        return Tuple3.of(item.getAppid(), item.getWindowBegin(), item.getPartUV());
-                    }
-                }).keyBy(item -> item.f0 + "_" + item.f1).sum(2);
-
+        SingleOutputStreamOperator<AppStatInfo> uvRes = keyStep1Res.assignTimestampsAndWatermarks(
+                        WatermarkStrategy.<AppMidInfo>forBoundedOutOfOrderness(Duration.ofSeconds(0))
+                                .withTimestampAssigner((event, timestamp) -> event.getVisitTime())
+                ).keyBy(elem -> elem.appid)
+                .window(TumblingEventTimeWindows.of(Time.seconds(1L)))
+                .process(new UVWindowProcessFunction());
         // step4. 输出结果
         uvRes.print("uvRes");
 
         // step5. execute
         env.execute("FlinkUvDemo");
-    }
-
-    private static class MyKeyedProcessFunction extends KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo> {
-        // map state 保持出现过的 uid
-        MapState<Long, Boolean> uidState;
-        MapStateDescriptor<Long, Boolean> uidStateDesc;
-
-        // value state 保留出现过的用户数
-        ValueState<Long> uvState;
-        ValueStateDescriptor<Long> uvStateDesc;
-
-        @Override
-        public void open(Configuration parameters) throws Exception {
-            // init state
-            uidStateDesc = new MapStateDescriptor<Long, Boolean>("uidState", TypeInformation.of(Long.class),
-                    TypeInformation.of(Boolean.class));
-            uidState = getRuntimeContext().getMapState(uidStateDesc);
-
-            uvStateDesc = new ValueStateDescriptor<Long>("uvState", TypeInformation.of(Long.class));
-            uvState = getRuntimeContext().getState(uvStateDesc);
-        }
-
-        @Override
-        public void processElement(AppVisitEvent appVisitEvent,
-                KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo>.Context ctx,
-                Collector<AppMidKeyInfo> collector) throws Exception {
-            // 当前的水印
-            long currentWatermark = ctx.timerService().currentWatermark();
-            if (ctx.getCurrentKey().windowEnd + 1 <= currentWatermark) {
-                // 数据延迟到达：可以侧流输出，稍后实现
-                System.out.println(String.format("late data:" + appVisitEvent));
-                return;
-            }
-
-            if (!uidState.contains(appVisitEvent.uid)) {
-                // 如果用户没有出行过，则更新数据: uv+1
-                uidState.put(appVisitEvent.uid, true);
-                Long cnt = uvState.value();
-                if (cnt == null) {
-                    uvState.update(1L);
-                } else {
-                    uvState.update(cnt + 1);
-                }
-                ctx.timerService().registerEventTimeTimer(ctx.getCurrentKey().windowEnd + 1);
-            }
-        }
-
-        @Override
-        public void onTimer(long timestamp,
-                KeyedProcessFunction<AppMidKeyInfo, AppVisitEvent, AppMidKeyInfo>.OnTimerContext ctx,
-                Collector<AppMidKeyInfo> out) throws Exception {
-            String appid = ctx.getCurrentKey().getAppid();
-            long partId = ctx.getCurrentKey().getPartId();
-            long beginT = ctx.getCurrentKey().getWindowBegin();
-            long endT = ctx.getCurrentKey().getWindowEnd();
-            AppMidKeyInfo midInfo = new AppMidKeyInfo(appid, partId, endT, beginT, uvState.value());
-            System.out.println(String.format("timestamp:%d, output: %s", timestamp, midInfo));
-            out.collect(midInfo);
-            uidState.clear();
-            uvState.clear();
-        }
     }
 
     private static DataStream<String> getDataStream(StreamExecutionEnvironment env) {
@@ -200,11 +135,22 @@ public class FlinkUvDemo {
     @NoArgsConstructor
     @ToString
     @Data
-    public static class AppMidKeyInfo {
+    public static class AppMidInfo {
         private String appid;
+        private long uid;
+        private long visitTime;
         private long partId;
-        private long windowEnd;
-        private long windowBegin;
         private long partUV;
+    }
+
+    @AllArgsConstructor
+    @NoArgsConstructor
+    @ToString
+    @Data
+    public static class AppStatInfo {
+        private String appid;
+        private String dayStr;
+        private long windowStart;
+        private long dayUv;
     }
 }
