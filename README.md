@@ -8,8 +8,17 @@ flink 学习仓库，用于深入掌握 flink 使用，包括：
 
 ## flink 集群搭建
 
-## flink 流批一体开发
-### 入门案例
+## Flink 基石
+Flink 有四大基石：时间语义、窗口管理、状态管理、容错机制
+
+1. [Flink时间处理](./docs/Flink时间处理.md)：详细介绍 Flink 处理时间的方式，Flink 强大的时间处理方式，能够更正确的处理数据。
+2. [Flink窗口机制](./docs/Flink窗口机制.md)：详细介绍 Flink 丰富的窗口类型和如何利用这些窗口解决实际业务问题。
+3. [Flink状态管理](./docs/Flink状态管理.md)：详细介绍 Flink 状态管理的原理、类型、横向扩展机制、使用方式和实际案例。
+4. [Flink容错机制](./docs/Flink容错机制.md)：详细介绍 Flink 容错机制，如何保证在分布式环境下能够出现故障自动恢复同时保证数据准确。
+
+## Flink Table & SQL
+
+## Flink 生产环境案例
 1. [DSWordCnt](./src/main/java/bigdata/clebeg/cn/quickstart/BSWordCnt.java): 流批一体的 word cnt，根据数据源自动切换模式
 ```shell
 # 默认情况下，flink 是通过 stream 模式跑
@@ -19,17 +28,12 @@ flink run -t yarn-per-job -Dexecution.runtime-mode=BATCH -c bigdata.clebeg.cn.qu
 # yarn kill 某个应用
 yarn application -kill application_1633745373273_0004
 ```
-2. [WatermakerDemo](./src/main/java/bigdata/clebeg/cn/quickstart/abouttime/WatermakerDemo.java): 模拟通过水印等待窗口延迟触发、延迟数据测流输出 
+2. [WatermakerDemo](./src/main/java/bigdata/clebeg/cn/quickstart/abouttime/WatermakerDemo.java): 模拟通过水印等待窗口延迟触发、延迟数据测流输出
 3. [FlinkUvDemo](./src/main/java/bigdata/clebeg/cn/quickstart/state/FlinkUvDemo.java): 真正生产级别可用 Flink海量UV计算问题     
-UV 计算在 Flink 里面是一个难题，一般生产环境会面临两个挑战，挑战1：热点问题，挑战2：大状态问题，此实现在大部分场景上可以解决上述两个问题。
+   UV 计算在 Flink 里面是一个难题，一般生产环境会面临两个挑战，挑战1：热点问题，挑战2：大状态问题，此实现在大部分场景上可以解决上述两个问题。
 4. [BatchRedisSink](./src/main/java/bigdata/clebeg/cn/quickstart/sink/BatchRedisSink.java): Flink 解决快速输入数据到 redis  
-输出到 Redis 考虑比较全面的话：1. 需要批量输出 2. 需要定时输出 3. 需要使用连接池，如果性能继续优化，还可以异步，后面可以给出优化的功能。
+   输出到 Redis 考虑比较全面的话：1. 需要批量输出 2. 需要定时输出 3. 需要使用连接池，如果性能继续优化，还可以异步，后面可以给出优化的功能。
 
-## Flink 基石
-Flink 有四大基石：时间语义、窗口管理、状态管理、容错机制
-
-1. [Flink窗口机制](./docs/Flink窗口机制.md)：详细介绍 Flink 窗口类型和使用方式。
-2. [Flink状态管理](./docs/Flink状态管理.md)：详细介绍 Flink 状态管理的原理、类型、横向扩展机制、使用方式和实际案例。
 
 ## 参考资料
 1. flink 如何做压测：https://www.cxyzjd.com/article/weixin_43291055/102692456
