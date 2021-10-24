@@ -13,8 +13,11 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class UVProcessFunction extends KeyedProcessFunction<Tuple2<String, Long>, AppVisitEvent, AppMidInfo> {
+    private static final Logger LOG = LoggerFactory.getLogger(UVProcessFunction.class);
     // map state 保持出现过的 uid
     private MapState<Long, Boolean> uidState;
 
@@ -48,7 +51,7 @@ public class UVProcessFunction extends KeyedProcessFunction<Tuple2<String, Long>
 
         if (elem.getVisitTime() + 1 <= ctx.timerService().currentWatermark()) {
             // 数据延迟到达：可以侧流输出，稍后实现
-            System.out.println(String.format("late data:" + elem));
+            LOG.info("late data: {}", elem);
             return;
         }
 

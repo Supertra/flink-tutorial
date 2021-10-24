@@ -1,5 +1,6 @@
 package bigdata.clebeg.cn.quickstart.sink;
 
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -41,7 +42,7 @@ public class BatchRedisSink extends RichSinkFunction<Tuple2<String, String>> imp
 
     private String redisHost;
     private int redisPort;
-    private int redisTimeout = 2000;
+    private int redisTimeout = 20000;
     private String redisPasswd;
 
     public BatchRedisSink(int threshold, long waitTime, String redisHost, int redisPort, int redisTimeout,
@@ -79,8 +80,7 @@ public class BatchRedisSink extends RichSinkFunction<Tuple2<String, String>> imp
     private ListState<Tuple2<String, String>> restDataState;
     private ListStateDescriptor<Tuple2<String, String>> restDataStateDesc;
 
-    private List<Tuple2<String, String>> cacheData;
-
+    private List<Tuple2<String, String>> cacheData = new ArrayList<>();
     private JedisPool jedisPool;
     private long lastWriteTime;
 
@@ -116,25 +116,27 @@ public class BatchRedisSink extends RichSinkFunction<Tuple2<String, String>> imp
         // 这里可以做一些数据转化
         cacheData.add(data);
         long curTime = System.currentTimeMillis();
-
         if (cacheData.size() >= threshold || (curTime - lastWriteTime) >= waitTime) {
             // 达到阈值 批量输出
             Jedis jedis = null;
             try {
                 jedis = jedisPool.getResource();
-                if (null != redisPasswd && redisPasswd.isEmpty()) {
-                    jedis.auth(redisPasswd);
-                }
                 Pipeline pipeline = jedis.pipelined();
                 for (Tuple2<String, String> curD : cacheData) {
                     pipeline.set(curD.f0, curD.f1);
+                    // 设置 key 两天过期
+                    pipeline.expire(curD.f0, 2 * 24 * 60 * 60L);
                 }
                 pipeline.sync();
-            } catch (Exception e) {
-                LOG.error(
-                        "Pipeline failed sync to redis, error msg %s",
-                        e.getMessage()
+                lastWriteTime = System.currentTimeMillis();
+                LOG.info(
+                        "Pipeline Success sync to redis, send data num: {}, last data: {}, cost_time: {}",
+                        cacheData.size(), data, lastWriteTime - curTime
                 );
+                // 输出后就清空
+                cacheData.clear();
+            } catch (Exception e) {
+                LOG.error("Pipeline failed sync to redis, error msg {}", e.getMessage());
                 throw e;
             } finally {
                 try {
@@ -142,14 +144,10 @@ public class BatchRedisSink extends RichSinkFunction<Tuple2<String, String>> imp
                         jedis.close();
                     }
                 } catch (Exception e) {
-                    LOG.error("Failed to close jedis instance, ", e);
+                    LOG.error("Failed to close jedis instance, {}", e);
                 }
             }
         }
-
-        // 清空之前的数据重新开始计数
-        cacheData.clear();
-        lastWriteTime = System.currentTimeMillis();
     }
 
     @Override
@@ -157,9 +155,9 @@ public class BatchRedisSink extends RichSinkFunction<Tuple2<String, String>> imp
         // 初始化 jedis pool
         JedisPoolConfig poolConfig = new JedisPoolConfig();
         poolConfig.setMaxTotal(128);
-
         try {
             jedisPool = new JedisPool(poolConfig, redisHost, redisPort, redisTimeout, redisPasswd);
+            LOG.info("Redis pool init success, redis host={}", redisHost);
         } catch (Exception e) {
             LOG.error("Redis pool init failed:", e);
             throw e;
